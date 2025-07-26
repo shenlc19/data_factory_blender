@@ -59,3 +59,27 @@ placed_objects = bproc.object.sample_poses_on_surface(objects_to_sample=sampled_
 ```
 
 objects_to_sample的数据类型应当是List[MeshObject]
+
+## 汽车数据渲染指南
+
+汽车数据渲染时使用随机采样的相机姿态，确保完全覆盖车身全部视角
+
+运行方法：
+```bash
+python dataset_toolkits/lh_render_pbr.py {path_to_model}
+```
+
+修改函数_render调用参数中的output_dir来指定保存位置：
+```python
+_render(file_path=file_path, 
+            sha256 = sha256, 
+            # output_dir="datasets/carverse_blenderkit_60view_even_light",
+            # output_dir="datasets/carverse_sketchfab_new_others_60view_even_light",
+            # output_dir="datasets/carverse_sketchfab_new_KOE_60view_even_light",
+            output_dir="datasets/debug",
+            num_views=60,
+            normal_map=False
+            )
+```
+
+一般保存在datasets/xxx下
