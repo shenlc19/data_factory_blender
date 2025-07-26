@@ -286,7 +286,7 @@ def init_render(engine='CYCLES', resolution=512, geo_mode=False, film_transparen
 """=============== BLENDER ==============="""
 
 IMPORT_FUNCTIONS: Dict[str, Callable] = {
-    "obj": bpy.ops.import_scene.obj,
+    "obj": bpy.ops.wm.obj_import,
     "glb": bpy.ops.import_scene.gltf,
     "gltf": bpy.ops.import_scene.gltf,
     "usd": bpy.ops.import_scene.usd,

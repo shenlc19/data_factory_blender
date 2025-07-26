@@ -15,10 +15,10 @@ import numpy as np
 from utils import sphere_hammersley_sequence
 import time
 
-BLENDER_LINK = 'https://download.blender.org/release/Blender4.3/blender-4.3.2-linux-x64.tar.xz'
+BLENDER_LINK = 'https://download.blender.org/release/Blender4.4/blender-4.4.3-linux-x64.tar.xz'
 # BLENDER_INSTALLATION_PATH = '/baai-cwm-1/baai_cwm_ml/algorithm/hong.li/tools'
-BLENDER_INSTALLATION_PATH = '/DATA_EDS2/shenlc2403/blender'
-BLENDER_PATH = f'{BLENDER_INSTALLATION_PATH}/blender-4.3.2-linux-x64/blender'
+BLENDER_INSTALLATION_PATH = '/baai-cwm-vepfs/cwm/hong.li/blender'
+BLENDER_PATH = f'{BLENDER_INSTALLATION_PATH}/blender-4.4.3-linux-x64/blender'
 
 def _install_blender():
     if not os.path.exists(BLENDER_PATH):
@@ -40,12 +40,14 @@ def _render(file_path, sha256, output_dir, num_views, normal_map=False):
     # Build camera {yaw, pitch, radius, fov}
     yaws = []
     pitchs = []
-    offset = (np.random.rand(), np.random.rand())
+    offset_strength = 2
+    offset = (offset_strength * np.random.rand(), offset_strength * np.random.rand())
     for i in range(num_views):
         y, p = sphere_hammersley_sequence(i, num_views, offset)
         yaws.append(y)
         pitchs.append(p)
-    radius = [2] * num_views
+    # radius = [2] * num_views
+    radius = np.random.uniform(low=0.9, high=2.5, size=(num_views, ))
     fov = [40 / 180 * np.pi] * num_views
     # radius = [1.2] * num_views
     # fov = [60 / 180 * np.pi] * num_views
@@ -217,7 +219,9 @@ if __name__ == '__main__':
     _render(file_path=file_path, 
             sha256 = sha256, 
             # output_dir="datasets/carverse_blenderkit_60view_even_light",
-            output_dir="datasets/carverse_sketchfab_60view_even_light",
+            # output_dir="datasets/carverse_sketchfab_new_others_60view_even_light",
+            # output_dir="datasets/carverse_sketchfab_new_KOE_60view_even_light",
+            output_dir="datasets/debug",
             num_views=60,
             normal_map=False
             )
