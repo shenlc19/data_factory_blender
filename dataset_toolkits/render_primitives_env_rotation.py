@@ -59,7 +59,7 @@ def _render(file_path, sha256, output_dir, num_views, normal_map=False):
     # print(rotatios)
     
     args = [
-        BLENDER_PATH, '-b', '-P', os.path.join(os.path.dirname(__file__), 'blender_script', 'render_cam_rotation.py'), # 'render_hi3dgen_pbr.py'),
+        BLENDER_PATH, '-b', '-P', os.path.join(os.path.dirname(__file__), 'blender_script', 'render_env_rotation.py'), # 'render_hi3dgen_pbr.py'),
         '--',
         '--rotatios', json.dumps(rotatios),
         '--object', os.path.expanduser(file_path),
@@ -230,7 +230,7 @@ if __name__ == '__main__':
 
     _render(file_path=file_path, 
             sha256 = None, 
-            output_dir=f"datasets/glassverse_v0_120_views_hdri/{scene_name}",
+            output_dir=f"datasets/primitives_v0_env_rotation/{scene_name}",
             num_views=10,
             normal_map=True
             )

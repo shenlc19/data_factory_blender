@@ -59,7 +59,7 @@ def _render(file_path, sha256, output_dir, num_views, normal_map=False):
     # print(rotatios)
     
     args = [
-        BLENDER_PATH, '-b', '-P', os.path.join(os.path.dirname(__file__), 'blender_script', 'render_cam_rotation.py'), # 'render_hi3dgen_pbr.py'),
+        BLENDER_PATH, '-b', '-P', os.path.join(os.path.dirname(__file__), 'blender_script', 'render_car_rotation.py'), # 'render_hi3dgen_pbr.py'),
         '--',
         '--rotatios', json.dumps(rotatios),
         '--object', os.path.expanduser(file_path),
@@ -70,8 +70,8 @@ def _render(file_path, sha256, output_dir, num_views, normal_map=False):
         '--save_mesh',
         '--save_normal',
         '--save_depth',
-        '--save_albedo',
-        '--save_pbr'
+        # '--save_albedo',
+        # '--save_pbr'
     ]
     if file_path.endswith('.blend'):
         args.insert(1, file_path)
@@ -224,13 +224,16 @@ if __name__ == '__main__':
     # file_paths = glob.glob('assets/*.glb')
     # for file_path in file_paths:
     file_path = sys.argv[1]
-    scene_name = os.path.basename(os.path.dirname(file_path)).split('.')[0] # 视情况修改
-    # scene_name = os.path.basename(file_path).split('.')[0]
+    # scene_name = os.path.basename(os.path.dirname(file_path)).split('.')[0] # 视情况修改
+    scene_name = os.path.basename(file_path).split('.')[0]
     start_time = time.time()
+
+    # Add subset (if necessary)
+    subset_name = os.path.basename(os.path.dirname(file_path))
 
     _render(file_path=file_path, 
             sha256 = None, 
-            output_dir=f"datasets/glassverse_v0_120_views_hdri/{scene_name}",
+            output_dir=f"datasets/hunyuan_demo/{subset_name}",
             num_views=10,
             normal_map=True
             )

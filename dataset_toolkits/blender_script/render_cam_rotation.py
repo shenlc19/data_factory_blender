@@ -86,7 +86,7 @@ def main(arg):
     for i, camera_pose in enumerate(camera_poses):
         # import ipdb;ipdb.set_trace()
         # 相机在正面
-        cam.matrix_world = Matrix(camera_poses[0])
+        cam.matrix_world = Matrix(camera_pose)
 
         # light_location = (
         #     view['radius'] * np.cos(view['yaw']) * np.cos(view['pitch']),
@@ -99,7 +99,7 @@ def main(arg):
             # spec_nodes['depth_map'].inputs[1].default_value = view['radius'] - 0.5 * np.sqrt(3)
             # spec_nodes['depth_map'].inputs[2].default_value = view['radius'] + 0.5 * np.sqrt(3)
         
-        set_hdri(hdri_file_path, rotation_euler=rotatios[i])
+        set_hdri(hdri_file_path, rotation_euler=rotatios[0])
 
         bpy.context.scene.render.filepath = os.path.join(arg.output_folder, f'{i:03d}.png') if not arg.save_low_normal else os.path.join(arg.output_folder, 'low_normal_image', f'{i:03d}_low_normal.png')
 
@@ -122,7 +122,6 @@ def main(arg):
             "file_path": f'{os.path.join("image", f"{i:03d}.png")}',
             "camera_angle_x": (40 / 180 * np.pi),
             "transform_matrix": get_transform_matrix(cam),
-            "hdri_euler": rotatios[i],
             # "light_location": light_location,
             # "light_rotation": (0, 0, 0),
             # "light_energy": 1000,

@@ -2,7 +2,6 @@ import os
 import json
 import numpy as np  
 import cv2  
-import glob
 import pyexr
 import copy
 import sys
@@ -36,10 +35,11 @@ def _install_blender():
 
 
 def _render(file_path, sha256, output_dir, num_views, normal_map=False):
-    # output_folder = os.path.join(output_dir, 'renders')
-    output_folder = output_dir
+    output_folder = os.path.join(output_dir, sha256)
     
-    # Build camera {yaw, pitch, radius, fov}
+    # # Build camera {yaw, pitch, radius, fov}
+    radius = [2] * num_views
+    fov = [40 / 180 * np.pi] * num_views
     # yaws = []
     # pitchs = []
     # offset = (np.random.rand(), np.random.rand())
@@ -47,30 +47,46 @@ def _render(file_path, sha256, output_dir, num_views, normal_map=False):
     #     y, p = sphere_hammersley_sequence(i, num_views, offset)
     #     yaws.append(y)
     #     pitchs.append(p)
-    # radius = [1] * num_views
-    # fov = [40 / 180 * np.pi] * num_views
     # # radius = [1.2] * num_views
     # # fov = [60 / 180 * np.pi] * num_views
-    # views = [{'yaw': y, 'pitch': p, 'radius': r, 'fov': f} for y, p, r, f in zip(yaws, pitchs, radius, fov)]
 
-    z_rotas = range(0, 360, 3)
-    rotatios = [[0, 0, z / 180 *  np.pi] for z in z_rotas]
+    # optimized cameras
+    # Sample yaw uniformly from 0 to 360 degrees
+    yaws = np.random.uniform(0, 360, num_views) / 180 * np.pi
+    min_pitch, max_pitch = 0, 30
+    # Sample pitch uniformly from min_pitch to max_pitch degrees
+    pitches = np.random.uniform(min_pitch, max_pitch, num_views) / 180 * np.pi
 
-    # print(rotatios)
+    yaw_noise_std = 0.05
+    pitch_noise_std = 0.05
+    yaw_noise = np.random.normal(0, yaw_noise_std, num_views)
+    pitch_noise = np.random.normal(0, pitch_noise_std, num_views)
+    
+    # Add noise to angles
+    perturbed_yaws = yaws + yaw_noise
+    perturbed_pitches = pitches + pitch_noise
+    
+    # Handle yaw wraparound (keep in [0, 360) range)
+    perturbed_yaws = perturbed_yaws % 360
+    
+    # Clamp pitch to valid range
+    perturbed_pitches = np.clip(perturbed_pitches, min_pitch, max_pitch)
+
+    views = [{'yaw': y, 'pitch': p, 'radius': r, 'fov': f} for y, p, r, f in zip(perturbed_yaws, perturbed_pitches, radius, fov)]
     
     args = [
-        BLENDER_PATH, '-b', '-P', os.path.join(os.path.dirname(__file__), 'blender_script', 'render_cam_rotation.py'), # 'render_hi3dgen_pbr.py'),
+        BLENDER_PATH, '-b', '-P', os.path.join(os.path.dirname(__file__), 'blender_script', 'render_pbr.py'),
         '--',
-        '--rotatios', json.dumps(rotatios),
+        '--views', json.dumps(views),
         '--object', os.path.expanduser(file_path),
-        '--resolution', '512',
+        '--resolution', '1024',
         '--output_folder', output_folder,
         '--engine', 'CYCLES',
         # '--engine', 'BLENDER_EEVEE_NEXT',
         '--save_mesh',
         '--save_normal',
         '--save_depth',
-        '--save_albedo',
+        # '--save_albedo',
         '--save_pbr'
     ]
     if file_path.endswith('.blend'):
@@ -80,21 +96,21 @@ def _render(file_path, sha256, output_dir, num_views, normal_map=False):
     call(args)
         
 
-    # if normal_map:
-    #     args = [
-    #         BLENDER_PATH, '-b', '-P', os.path.join(os.path.dirname(__file__), 'blender_script', 'render_pbr.py'),
-    #         '--',
-    #         '--views', json.dumps(views),
-    #         '--object', os.path.expanduser(file_path),
-    #         '--resolution', '512',
-    #         '--output_folder', output_folder,
-    #         '--engine', 'CYCLES',
-    #         '--save_low_normal'
-    #     ]
-    #     if file_path.endswith('.blend'):
-    #         args.insert(1, file_path)
-    #     # call(args, stdout=DEVNULL, stderr=DEVNULL)
-    #     call(args)
+    if normal_map:
+        args = [
+            BLENDER_PATH, '-b', '-P', os.path.join(os.path.dirname(__file__), 'blender_script', 'render_pbr.py'),
+            '--',
+            '--views', json.dumps(views),
+            '--object', os.path.expanduser(file_path),
+            '--resolution', '512',
+            '--output_folder', output_folder,
+            '--engine', 'CYCLES',
+            '--save_low_normal'
+        ]
+        if file_path.endswith('.blend'):
+            args.insert(1, file_path)
+        # call(args, stdout=DEVNULL, stderr=DEVNULL)
+        call(args)
     
     # if os.path.exists(os.path.join(output_folder, 'transforms.json')):
         # return {'sha256': sha256, 'rendered': True}
@@ -212,27 +228,21 @@ if __name__ == '__main__':
     # rendered.to_csv(os.path.join(opt.output_dir, f'rendered_{opt.rank}.csv'), index=False)
 
     # file_path = "/baai-cwm-1/baai_cwm_ml/algorithm/hong.li/code/3dgen/TRELLIS/datasets/ObjaverseXL_sketchfab/raw/hf-objaverse-v1/glbs/000-034/1bb177d4e6f6470ba167ef5e4d8e2596.glb"
-    # file_path = "/baai-cwm-1/baai_cwm_ml/algorithm/hong.li/code/3dgen/TRELLIS/datasets/ObjaverseXL_sketchfab/raw/glbs/000-077/510ad2a9dd4441ed8af92bce5d6d8406.glb"
+    file_path = sys.argv[1]
     # file_path = "/baai-cwm-1/baai_cwm_ml/algorithm/hong.li/code/3dgen/TRELLIS/datasets/ObjaverseXL_sketchfab/raw/glbs/000-000/00a1a602456f4eb188b522d7ef19e81b.glb"
     # file_path = "/baai-cwm-1/baai_cwm_ml/algorithm/hong.li/code/3dgen/blender-render-toolbox-1209/assets/glbs/1a57a0d6609145b486ed5b1d3e9ec7fb.glb"
     # file_path = "/baai-cwm-1/baai_cwm_ml/algorithm/hong.li/code/3dgen/blender-render-toolbox-1209/assets/glbs/1a57a0d6609145b486ed5b1d3e9ec7fb.glb"
     # file_path = "/baai-cwm-1/baai_cwm_ml/algorithm/hong.li/code/3dgen/TRELLIS/datasets/trash/assets/5a2d6e397a8945eebf02064c63f88866.glb"
-    # file_path = '/baai-cwm-1/baai_cwm_ml/algorithm/licheng.shen/packages/BlenderProc/examples/datasets/bop_challenge/output/bop_data/lm.blend'
-    # sha256 = os.path.basename(file_path).split('.')[0]
-    
-    # import pandas as pd
-    # file_paths = glob.glob('assets/*.glb')
-    # for file_path in file_paths:
-    file_path = sys.argv[1]
-    scene_name = os.path.basename(os.path.dirname(file_path)).split('.')[0] # 视情况修改
-    # scene_name = os.path.basename(file_path).split('.')[0]
+    sha256 = os.path.basename(file_path).split('.')[0]
+
     start_time = time.time()
 
     _render(file_path=file_path, 
-            sha256 = None, 
-            output_dir=f"datasets/glassverse_v0_120_views_hdri/{scene_name}",
-            num_views=10,
-            normal_map=True
+            sha256 = sha256, 
+            # output_dir="datasets/carverse_blenderkit_60view_even_light",
+            output_dir="datasets/carverse_sketchfab_512sample_1024_12view_even_light",
+            num_views=12,
+            normal_map=False
             )
 
     end_time = time.time()

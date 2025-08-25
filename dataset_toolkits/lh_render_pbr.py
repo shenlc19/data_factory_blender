@@ -37,26 +37,49 @@ def _install_blender():
 def _render(file_path, sha256, output_dir, num_views, normal_map=False):
     output_folder = os.path.join(output_dir, sha256)
     
-    # Build camera {yaw, pitch, radius, fov}
-    yaws = []
-    pitchs = []
-    offset = (np.random.rand(), np.random.rand())
-    for i in range(num_views):
-        y, p = sphere_hammersley_sequence(i, num_views, offset)
-        yaws.append(y)
-        pitchs.append(p)
+    # # Build camera {yaw, pitch, radius, fov}
     radius = [2] * num_views
     fov = [40 / 180 * np.pi] * num_views
-    # radius = [1.2] * num_views
-    # fov = [60 / 180 * np.pi] * num_views
-    views = [{'yaw': y, 'pitch': p, 'radius': r, 'fov': f} for y, p, r, f in zip(yaws, pitchs, radius, fov)]
+    # yaws = []
+    # pitchs = []
+    # offset = (np.random.rand(), np.random.rand())
+    # for i in range(num_views):
+    #     y, p = sphere_hammersley_sequence(i, num_views, offset)
+    #     yaws.append(y)
+    #     pitchs.append(p)
+    # # radius = [1.2] * num_views
+    # # fov = [60 / 180 * np.pi] * num_views
+
+    # optimized cameras
+    # Sample yaw uniformly from 0 to 360 degrees
+    yaws = np.random.uniform(0, 360, num_views) / 180 * np.pi
+    min_pitch, max_pitch = 0, 30
+    # Sample pitch uniformly from min_pitch to max_pitch degrees
+    pitches = np.random.uniform(min_pitch, max_pitch, num_views) / 180 * np.pi
+
+    yaw_noise_std = 0.05
+    pitch_noise_std = 0.05
+    yaw_noise = np.random.normal(0, yaw_noise_std, num_views)
+    pitch_noise = np.random.normal(0, pitch_noise_std, num_views)
+    
+    # Add noise to angles
+    perturbed_yaws = yaws + yaw_noise
+    perturbed_pitches = pitches + pitch_noise
+    
+    # Handle yaw wraparound (keep in [0, 360) range)
+    perturbed_yaws = perturbed_yaws % 360
+    
+    # Clamp pitch to valid range
+    perturbed_pitches = np.clip(perturbed_pitches, min_pitch, max_pitch)
+
+    views = [{'yaw': y, 'pitch': p, 'radius': r, 'fov': f} for y, p, r, f in zip(perturbed_yaws, perturbed_pitches, radius, fov)]
     
     args = [
         BLENDER_PATH, '-b', '-P', os.path.join(os.path.dirname(__file__), 'blender_script', 'render_pbr.py'),
         '--',
         '--views', json.dumps(views),
         '--object', os.path.expanduser(file_path),
-        '--resolution', '800',
+        '--resolution', '1024',
         '--output_folder', output_folder,
         '--engine', 'CYCLES',
         # '--engine', 'BLENDER_EEVEE_NEXT',
@@ -217,8 +240,8 @@ if __name__ == '__main__':
     _render(file_path=file_path, 
             sha256 = sha256, 
             # output_dir="datasets/carverse_blenderkit_60view_even_light",
-            output_dir="datasets/carverse_sketchfab_60view_even_light",
-            num_views=60,
+            output_dir="datasets/carverse_blenderkit_512sample_1024_12view_even_light",
+            num_views=12,
             normal_map=False
             )
 

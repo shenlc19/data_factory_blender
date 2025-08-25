@@ -43,6 +43,7 @@ def main(arg):
     HDRI_PATHS = sorted(os.listdir(hdri_envmaps_dir))
     hdri_file_path = np.random.choice(HDRI_PATHS, 1)
     hdri_file_path = os.path.join(hdri_envmaps_dir, hdri_file_path[0])
+    # hdri_file_path = '/DATA_EDS2/shenlc2403/data_factory/hdri_4k/furry_clouds.hdr'
 
     cam = init_camera() # Initialize camera, add camera to scene
     # scene_lights = setup_5daigc_light_and_world_with_hdri(hdri_file_path=hdri_file_path) # add point light and hdri background to scene
@@ -86,7 +87,7 @@ def main(arg):
     for i, camera_pose in enumerate(camera_poses):
         # import ipdb;ipdb.set_trace()
         # 相机在正面
-        cam.matrix_world = Matrix(camera_poses[0])
+        cam.matrix_world = Matrix(camera_poses[i])
 
         # light_location = (
         #     view['radius'] * np.cos(view['yaw']) * np.cos(view['pitch']),

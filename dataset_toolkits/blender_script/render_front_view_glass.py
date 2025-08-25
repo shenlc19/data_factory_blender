@@ -6,6 +6,10 @@ import numpy as np
 import json
 import glob
 
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from utils import set_hdri
+
 def make_output_dir(output_dir: str, name: str):
     output_dir = os.path.join(output_dir, name)
     os.makedirs(output_dir, exist_ok=True)
@@ -25,7 +29,7 @@ IMPORT_FUNCTIONS: Dict[str, Callable] = {
     "dae": bpy.ops.wm.collada_import,
     "ply": bpy.ops.import_mesh.ply,
     "abc": bpy.ops.wm.alembic_import,
-    "blend": bpy.ops.wm.append,
+    "blend": bpy.ops.wm.open_mainfile,
 }
 
 EXT = {
@@ -350,7 +354,7 @@ def init_lighting():
     # Create key light
     default_light = bpy.data.objects.new("Default_Light", bpy.data.lights.new("Default_Light", type="POINT"))
     bpy.context.collection.objects.link(default_light)
-    default_light.data.energy = 1000
+    default_light.data.energy = 4000
     default_light.location = (4, 1, 6)
     default_light.rotation_euler = (0, 0, 0)
     
@@ -358,13 +362,13 @@ def init_lighting():
     top_light = bpy.data.objects.new("Top_Light", bpy.data.lights.new("Top_Light", type="AREA"))
     bpy.context.collection.objects.link(top_light)
     top_light.data.energy = 10000
-    top_light.location = (0, 0, 10)
+    top_light.location = (0, 0, 5)
     top_light.scale = (100, 100, 100)
     
     # create bottom light
     bottom_light = bpy.data.objects.new("Bottom_Light", bpy.data.lights.new("Bottom_Light", type="AREA"))
     bpy.context.collection.objects.link(bottom_light)
-    bottom_light.data.energy = 1000
+    bottom_light.data.energy = 4000
     bottom_light.location = (0, 0, -10)
     bottom_light.rotation_euler = (0, 0, 0)
     
@@ -410,7 +414,8 @@ def load_object(object_path: str) -> None:
 
     print(f"Loading object from {object_path}")
     if file_extension == "blend":
-        import_function(directory=object_path, link=False)
+        # import_function(directory=object_path, link=False)
+        import_function(filepath=object_path)
     elif file_extension in {"glb", "gltf"}:
         import_function(filepath=object_path, merge_vertices=True, import_shading='NORMALS')
     # elif file_extension in {"obj"}:
@@ -571,7 +576,7 @@ def scene_bbox() -> Tuple[Vector, Vector]:
         raise RuntimeError("no objects in scene to compute bounding box for")
     return Vector(bbox_min), Vector(bbox_max)
 
-def normalize_scene() -> Tuple[float, Vector]:
+def normalize_scene(normalize_factor=1) -> Tuple[float, Vector]:
     """Normalizes the scene by scaling and translating it to fit in a unit cube centered
     at the origin.
 
@@ -596,7 +601,8 @@ def normalize_scene() -> Tuple[float, Vector]:
         scene = scene_root_objects[0]
 
     bbox_min, bbox_max = scene_bbox()
-    scale = 1 / max(bbox_max - bbox_min)
+    # scale = 1 / max(bbox_max - bbox_min) # 改变scale的尺寸
+    scale = normalize_factor / max(bbox_max - bbox_min)
     scene.scale = scene.scale * scale
 
     # Apply scale to matrix_world.
@@ -621,17 +627,96 @@ def get_transform_matrix(obj: bpy.types.Object) -> list:
     matrix.append([0, 0, 0, 1])
     return matrix
 
+def save_camera_parameters(filepath="camera_params.json"):
+    """
+    Save Blender camera parameters to a JSON file
+    """
+    scene = bpy.context.scene
+    camera = scene.camera
+    
+    if not camera:
+        print("No active camera found!")
+        return
+    
+    # Get camera object and data
+    cam_obj = camera
+    cam_data = camera.data
+    
+    # Get render settings
+    render = scene.render
+    width = render.resolution_x
+    height = render.resolution_y
+    
+    # Calculate focal length in pixels
+    if cam_data.sensor_fit == 'VERTICAL':
+        sensor_size = cam_data.sensor_height
+        focal_px = (cam_data.lens / sensor_size) * height
+    else:  # HORIZONTAL or AUTO
+        sensor_size = cam_data.sensor_width
+        focal_px = (cam_data.lens / sensor_size) * width
+    
+    # Get camera matrix (world to camera transform)
+    cam_matrix = cam_obj.matrix_world.copy()
+    
+    # Convert to standard computer vision coordinate system
+    # Blender: Z-up, Y-forward, X-right
+    # CV: Y-down, Z-forward, X-right
+    # Rotation matrix to convert from Blender to CV coordinates
+    rot_matrix = Matrix((
+        (1, 0, 0, 0),
+        (0, -1, 0, 0),
+        (0, 0, -1, 0),
+        (0, 0, 0, 1)
+    ))
+    
+    # Apply coordinate system conversion
+    cam_matrix = rot_matrix @ cam_matrix.inverted()
+    
+    # Extract rotation and translation
+    rotation = cam_matrix.to_3x3()
+    translation = cam_matrix.translation
+    
+    # Create intrinsic matrix
+    cx = width / 2.0
+    cy = height / 2.0
+    fx = fy = focal_px
+    
+    intrinsic_matrix = [
+        [fx, 0, cx],
+        [0, fy, cy],
+        [0, 0, 1]
+    ]
+    
+    # Prepare data for export
+    camera_params = {
+        "intrinsic_matrix": intrinsic_matrix,
+        "rotation_matrix": [list(row) for row in rotation],
+        "translation_vector": list(translation),
+        "image_width": width,
+        "image_height": height,
+        "focal_length_mm": cam_data.lens,
+        "sensor_width_mm": cam_data.sensor_width,
+        "sensor_height_mm": cam_data.sensor_height
+    }
+    
+    # Save to JSON file
+    with open(filepath, 'w') as f:
+        json.dump(camera_params, f, indent=2)
+    
+    print(f"Camera parameters saved to {filepath}")
+    return camera_params
+
 def main(arg):
     os.makedirs(arg.output_folder, exist_ok=True)
     
-    if arg.object.endswith(".blend"):
-        delete_invisible_objects()
-    else:
-        init_scene()
-        load_object(arg.object)
-        if arg.split_normal:
-            split_mesh_normal()
-        # delete_custom_normals()
+    # if arg.object.endswith(".blend"):
+    #     delete_invisible_objects()
+    # else:
+    init_scene()
+    load_object(arg.object)
+    if arg.split_normal:
+        split_mesh_normal()
+    # delete_custom_normals()
     
     # import ipdb; ipdb.set_trace()
     delete_animation_data() # lihong add 20250126
@@ -640,17 +725,23 @@ def main(arg):
     print('[INFO] Scene initialized.')
     
     # normalize scene
-    scale, offset = normalize_scene()
+    scale, offset = normalize_scene(0.3)
     print('[INFO] Scene normalized.')
     
     # Initialize camera and lighting
-    cam = init_camera()
-    init_lighting()
-    print('[INFO] Camera and lighting initialized.')
+    cam = init_camera()    
+    cam.location = (
+        2, 0, 1
+    )
+
+    # init_lighting()
+    # print('[INFO] Camera and lighting initialized.')
+    hdri_file_path = '/DATA_EDS2/shenlc2403/data_factory/hdri_4k/balcony.hdr'
+    set_hdri(hdri_file_path, rotation_euler=(0, 0, 0))
 
     # Initialize context
     init_render(engine=arg.engine, resolution=arg.resolution)
-    outputs, spec_nodes = init_nodes()
+    outputs, spec_nodes = init_nodes(save_depth=True)
     
     # Create a list of views
     to_export = {
@@ -661,14 +752,12 @@ def main(arg):
         "frames": []
     }
     # for i, view in enumerate(views):
-        
-    cam.location = (
-        0, -2, 0
-    )
+    
 
-    save_name = 'front_view'
+    save_name = 'side_view'
 
     bpy.context.scene.render.filepath = os.path.join(arg.output_folder, f'{save_name}.png')
+    i = 0
     for name, output in outputs.items():
         os.makedirs(os.path.join(arg.output_folder, f'{name.split(".")[0]}'), exist_ok=True)
         output.file_slots[0].path = os.path.join(arg.output_folder, f'{name.split(".")[0]}', f'{i:03d}_{name}')
@@ -681,8 +770,18 @@ def main(arg):
     for name, output in outputs.items():
         ext = EXT[output.format.file_format]
         path = glob.glob(f'{output.file_slots[0].path}0001.{ext}')[0]
-        # os.rename(path, f'{output.file_slots[0].path}.{ext}')
-        os.rename(path, f'{save_name}.{ext}')
+        os.rename(path, f'{output.file_slots[0].path}.{ext}')
+        # os.rename(path, f'{save_name}.{ext}')
+        
+    unhide_all_objects()
+    convert_to_meshes()
+    triangulate_meshes()
+    print('[INFO] Meshes triangulated.')
+    
+    # export ply mesh
+    # bpy.ops.wm.ply_export(filepath=os.path.join(arg.output_folder, 'mesh.ply'))
+    
+    # save_camera_parameters(filepath=os.path.join(arg.output_folder, 'camera_params.json'))
 
         
 if __name__ == '__main__':
@@ -692,6 +791,7 @@ if __name__ == '__main__':
     parser.add_argument('--resolution', type=int, default=512, help='Resolution of the images.')
     parser.add_argument('--engine', type=str, default='CYCLES', help='Blender internal engine for rendering. E.g. CYCLES, BLENDER_EEVEE, ...')
     parser.add_argument('--split_normal', action='store_true', help='Split the normals of the mesh.')
+    parser.add_argument('--extra_rot', type=float, default=0.0)
 
     argv = sys.argv[sys.argv.index("--") + 1:]
     args = parser.parse_args(argv)
