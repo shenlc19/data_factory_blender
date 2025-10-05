@@ -233,7 +233,7 @@ if __name__ == '__main__':
 
     _render(file_path=file_path, 
             sha256 = None, 
-            output_dir=f"datasets/hunyuan_demo/{subset_name}",
+            output_dir=f"datasets/hunyuan3_results_0921_adjusted/{scene_name}",
             num_views=10,
             normal_map=True
             )

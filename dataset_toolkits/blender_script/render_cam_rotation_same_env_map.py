@@ -1,64 +1,16 @@
 import argparse, sys, os, math, re, glob
 from typing import *
 import bpy
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix    
 import numpy as np
 import json
 import glob
+import shutil
 
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from utils import *
 
-
-def init_lighting():
-    # Clear existing lights
-    bpy.ops.object.select_all(action="DESELECT")
-    bpy.ops.object.select_by_type(type="LIGHT")
-    bpy.ops.object.delete()
-    
-    # Create key light
-    default_light = bpy.data.objects.new("Default_Light", bpy.data.lights.new("Default_Light", type="POINT"))
-    bpy.context.collection.objects.link(default_light)
-    default_light.data.energy = 4800
-    default_light.location = (4, 1, 6)
-    default_light.rotation_euler = (0, 0, 0)
-    
-    # create top light
-    top_light = bpy.data.objects.new("Top_Light", bpy.data.lights.new("Top_Light", type="AREA"))
-    bpy.context.collection.objects.link(top_light)
-    top_light.data.energy = 8000
-    top_light.location = (0, 0, 6)
-    top_light.scale = (100, 100, 100)
-    
-    # create bottom light
-    bottom_light = bpy.data.objects.new("Bottom_Light", bpy.data.lights.new("Bottom_Light", type="AREA"))
-    bpy.context.collection.objects.link(bottom_light)
-    bottom_light.data.energy = 4800
-    bottom_light.location = (0, 0, -5)
-    bottom_light.rotation_euler = (0, 0, 0)
-    
-    # create bottom light
-    forward_light = bpy.data.objects.new("forward_light", bpy.data.lights.new("forward_light", type="AREA"))
-    bpy.context.collection.objects.link(forward_light)
-    forward_light.data.energy = 4000
-    forward_light.location = (0, 5, 0)
-    forward_light.rotation_euler = (-1.571, 0, 0)
-    forward_light.scale = (100, 100, 100)
-    
-    # create bottom light
-    backward_light = bpy.data.objects.new("backward_light", bpy.data.lights.new("backward_light", type="AREA"))
-    bpy.context.collection.objects.link(backward_light)
-    backward_light.data.energy = 4000
-    backward_light.location = (0, -5, 0)
-    backward_light.rotation_euler = (1.571, 0, 0)
-    backward_light.scale = (100, 100, 100)
-    
-    return {
-        "default_light": default_light,
-        "top_light": top_light,
-        "bottom_light": bottom_light
-    }
 
 def main(arg):
     os.makedirs(arg.output_folder, exist_ok=True)
@@ -81,25 +33,28 @@ def main(arg):
 
     print('[INFO] Scene initialized.')
 
-    # normalize scene
-    scale, offset = normalize_scene()
-    print('[INFO] Scene normalized.')
-
-
-    init_lighting()
-    # for obj in bpy.data.objects:
-    #     if obj.type == 'MESH':
-    #         obj.rotation_euler = (0, 0, 0)
+    # # normalize scene
+    # scale, offset = normalize_scene()
+    # print('[INFO] Scene normalized.')
+    
+    # Initialize camera and lighting
+    del_lighting()
+    hdri_envmaps_dir = "/DATA_EDS2/shenlc2403/data_factory/high_4k_hdri/4k_exr"
+    HDRI_PATHS = sorted(os.listdir(hdri_envmaps_dir))
+    hdri_file_path = np.random.choice(HDRI_PATHS, 1)
+    hdri_file_path = os.path.join(hdri_envmaps_dir, hdri_file_path[0])
+    existing_hdri_file_path = os.path.join(arg.output_folder, 'env.hdr').replace('primitives_v0_material_replaced_cam_rotation', 'primitives_v0_60views_hdri_4k').replace('env.hdr', 'renders/env.hdr')
+    if os.path.exists(existing_hdri_file_path):
+        hdri_file_path = existing_hdri_file_path
 
     cam = init_camera() # Initialize camera, add camera to scene
+    # scene_lights = setup_5daigc_light_and_world_with_hdri(hdri_file_path=hdri_file_path) # add point light and hdri background to scene
     print('[INFO] Camera and lighting initialized.')
-
-    # bpy.ops.wm.save_mainfile(filepath=os.path.join(arg.output_folder, 'test.blend'))
 
     # Initialize context
     init_render(engine=arg.engine, resolution=arg.resolution, geo_mode=arg.geo_mode, film_transparent=True)
-    
     outputs, spec_nodes, _ = init_nodes(
+        save_image=True,
         save_alpha=arg.save_alpha,
         save_depth=arg.save_depth,
         save_normal=arg.save_normal,
@@ -117,34 +72,24 @@ def main(arg):
     # Create a list of views
     to_export = {
         "aabb": [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
-        "scale": scale,
-        "offset": [offset.x, offset.y, offset.z],
+        # "scale": scale,
+        # "offset": [offset.x, offset.y, offset.z],
         "resolution": arg.resolution,
         "frames": []
     }
     rotatios = json.loads(arg.rotatios)
-    for i, rota in enumerate(rotatios):
+    
+    # save hdri and rot angle
+    to_export['hdri_rot'] = rotatios[0]
+    shutil.copy(hdri_file_path,
+                os.path.join(arg.output_folder, 'env.hdr'))
+
+    with open(arg.object.replace('lm.blend', 'transforms.json')) as f:
+        camera_poses = json.load(f)
+    for i, camera_pose in enumerate(camera_poses):
         # import ipdb;ipdb.set_trace()
         # 相机在正面
-
-        # static camera
-        # cam.location = (0, -2, 0)
-        # cam.rotation_euler = (90*np.pi/180, 0, 0)
-
-        # rotating camera
-        # Calculate circular position at height 2
-        radius = 2  # Distance from center
-        x = radius * np.cos(2 * np.pi * i / len(rotatios))
-        y = radius * np.sin(2 * np.pi * i / len(rotatios)) 
-        z = 0.5  # Height
-        
-        cam.location = (x, y, z)
-        
-        # Point camera toward center (0, 0, 0)
-        direction = Vector((0, 0, 0)) - Vector((x, y, z))
-        cam.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
-
-        cam.data.lens = 16 / np.tan((40 / 180 * np.pi) / 2)
+        cam.matrix_world = Matrix(camera_pose)
 
         # light_location = (
         #     view['radius'] * np.cos(view['yaw']) * np.cos(view['pitch']),
@@ -156,6 +101,8 @@ def main(arg):
         # if arg.save_depth:
             # spec_nodes['depth_map'].inputs[1].default_value = view['radius'] - 0.5 * np.sqrt(3)
             # spec_nodes['depth_map'].inputs[2].default_value = view['radius'] + 0.5 * np.sqrt(3)
+        
+        set_hdri(hdri_file_path, rotation_euler=rotatios[0])
 
         bpy.context.scene.render.filepath = os.path.join(arg.output_folder, f'{i:03d}.png') if not arg.save_low_normal else os.path.join(arg.output_folder, 'low_normal_image', f'{i:03d}_low_normal.png')
 
@@ -192,7 +139,7 @@ def main(arg):
         #     }
 
         to_export["frames"].append(metadata)
-    
+
     # Save the camera parameters
     with open(os.path.join(arg.output_folder, 'transforms.json'), 'w') as f:
         json.dump(to_export, f, indent=4)

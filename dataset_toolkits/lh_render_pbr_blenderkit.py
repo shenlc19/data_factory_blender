@@ -233,14 +233,14 @@ if __name__ == '__main__':
     # file_path = "/baai-cwm-1/baai_cwm_ml/algorithm/hong.li/code/3dgen/blender-render-toolbox-1209/assets/glbs/1a57a0d6609145b486ed5b1d3e9ec7fb.glb"
     # file_path = "/baai-cwm-1/baai_cwm_ml/algorithm/hong.li/code/3dgen/blender-render-toolbox-1209/assets/glbs/1a57a0d6609145b486ed5b1d3e9ec7fb.glb"
     # file_path = "/baai-cwm-1/baai_cwm_ml/algorithm/hong.li/code/3dgen/TRELLIS/datasets/trash/assets/5a2d6e397a8945eebf02064c63f88866.glb"
-    sha256 = os.path.basename(os.path.dirname(file_path)).split('.')[0]
+    sha256 = os.path.basename((file_path)).split('.')[0]
 
     start_time = time.time()
 
     _render(file_path=file_path, 
             sha256 = sha256, 
             # output_dir="datasets/carverse_blenderkit_60view_even_light",
-            output_dir="datasets/carverse_sketchfab_0808_batch2_512sample_1024_12view_even_light",
+            output_dir="datasets/carverse_d760_batch2",
             num_views=12,
             normal_map=False
             )

@@ -240,7 +240,7 @@ if __name__ == '__main__':
     _render(file_path=file_path, 
             sha256 = sha256, 
             # output_dir="datasets/carverse_blenderkit_60view_even_light",
-            output_dir="datasets/carverse_blenderkit_512sample_1024_12view_even_light",
+            output_dir="datasets/carverse_texverse_4k",
             num_views=12,
             normal_map=False
             )

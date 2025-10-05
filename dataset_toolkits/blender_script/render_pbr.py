@@ -49,7 +49,7 @@ def init_render(engine='CYCLES', resolution=512, geo_mode=False, device_index=0)
     
     if engine == 'CYCLES': 
         bpy.context.scene.cycles.device = 'GPU'
-        bpy.context.scene.cycles.samples = 256 if not geo_mode else 1
+        bpy.context.scene.cycles.samples = 1024 if not geo_mode else 1
         bpy.context.scene.cycles.filter_type = 'BOX'
         bpy.context.scene.cycles.filter_width = 1
         bpy.context.scene.cycles.diffuse_bounces = 1
@@ -525,8 +525,11 @@ def convert_to_meshes() -> None:
     """
     bpy.ops.object.select_all(action="DESELECT")
     bpy.context.view_layer.objects.active = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"][0]
+    view_layer_name = "ViewLayer"
+    view_layer = bpy.context.scene.view_layers.get(view_layer_name)
     for obj in bpy.context.scene.objects:
-        obj.select_set(True)
+        if obj in list(view_layer.objects):
+            obj.select_set(True)
     bpy.ops.object.convert(target="MESH")
         
 def triangulate_meshes() -> None:
@@ -538,8 +541,11 @@ def triangulate_meshes() -> None:
     bpy.ops.object.select_all(action="DESELECT")
     objs = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
     bpy.context.view_layer.objects.active = objs[0]
+    view_layer_name = "ViewLayer"
+    view_layer = bpy.context.scene.view_layers.get(view_layer_name)
     for obj in objs:
-        obj.select_set(True)
+        if obj in list(view_layer.objects):
+            obj.select_set(True)
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.reveal()
     bpy.ops.mesh.select_all(action="SELECT")
@@ -651,6 +657,44 @@ def main(arg):
     # normalize scene
     scale, offset = normalize_scene()
     print('[INFO] Scene normalized.')
+
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in bpy.context.scene.objects:
+        if obj.type == 'MESH':
+            obj.select_set(True)
+            subdiv = obj.modifiers.new(name="Subdivision", type='SUBSURF')
+            subdiv.levels = 2          # Viewport subdivision level
+            subdiv.render_levels = 4   # Render subdivision level
+            subdiv.subdivision_type = 'CATMULL_CLARK'  # or 'SIMPLE'
+
+            # Apply the modifier (so it becomes real geometry)
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.object.modifier_apply(modifier=subdiv.name)
+            obj.select_set(False)
+
+    bpy.ops.object.select_all(action='DESELECT')
+
+    # # Select all mesh objects
+    # for obj in bpy.context.scene.objects:
+    #     if obj.type == 'MESH':
+    #         obj.select_set(True)
+
+    # # Make sure we have an active object
+    # if bpy.context.selected_objects:
+    #     bpy.context.view_layer.objects.active = bpy.context.selected_objects[0]
+        
+    #     # Rotate around scene origin (0,0,0)
+    #     bpy.ops.transform.rotate(value=math.radians(90), orient_axis='X', center_override=(0,0,0))
+
+    # bpy.ops.wm.save_mainfile(filepath='test.blend')
+
+    # old_path = '//../../../../BlenderProc'
+    # new_path = '/DATA_EDS2/shenlc2403/data_factory/BlenderProc'
+    # for img in bpy.data.images:
+    #     print(img.filepath)
+    #     if old_path in img.filepath:
+    #         img.filepath = img.filepath.replace(old_path, new_path)
+    #         img.reload()
     
     # Initialize camera and lighting
     cam = init_camera()
@@ -707,7 +751,10 @@ def main(arg):
         # import ipdb;ipdb.set_trace()
         for name, output in outputs.items():
             ext = EXT[output.format.file_format]
-            path = glob.glob(f'{output.file_slots[0].path}0001.{ext}')[0]
+            # if len(glob.glob(f'{output.file_slots[0].path}0001.{ext}')):
+            #     path = glob.glob(f'{output.file_slots[0].path}0001.{ext}')[0]
+            # elif len(glob.glob(f'{output.file_slots[0].path}0000.{ext}')[0]):
+            path = glob.glob(f'{output.file_slots[0].path}00*.{ext}')[0]
             os.rename(path, f'{output.file_slots[0].path}.{ext}')
             
         # Save camera parameters
